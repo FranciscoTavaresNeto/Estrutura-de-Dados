@@ -1,206 +1,457 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // ==========================================
-// ESTRUTURAS DA PILHA GENÉRICA
+// ESTRUTURAS DE DADOS (BASEADAS NA AULA)
 // ==========================================
 
-typedef struct elemento
+typedef struct pino
 {
-    void *dado;
-    struct elemento *proximo;
-} Elemento;
+    char cor[15];
+    char sigla; // 'V', 'A', 'D', 'M' para facilitar a visualizacao na tela
+    int idCor;  // 1 = Vermelho, 2 = Azul, 3 = Verde, 4 = Amarelo
+    struct pino *proximo;
+} Pino;
 
 typedef struct pilha
 {
-    Elemento *topo;
+    Pino *topo;
     int qtd;
+    int capacidade; // 4 para Pilhas normais (P1..P4) e 1 para Temporarios (Temp1, Temp2)
 } Pilha;
 
-Pilha *criaPilha()
+// ==========================================
+// FUNCOES BASICAS DA PILHA
+// ==========================================
+
+Pilha *criaPilha(int capacidade)
 {
     Pilha *p = (Pilha *)malloc(sizeof(Pilha));
     p->topo = NULL;
     p->qtd = 0;
+    p->capacidade = capacidade;
     return p;
 }
 
-void push(Pilha *p, void *dado)
+Pino *criaElementoPino(int idCor)
 {
-    if (dado != NULL)
+    Pino *novo = (Pino *)malloc(sizeof(Pino));
+    novo->proximo = NULL;
+    novo->idCor = idCor;
+
+    switch (idCor)
     {
-        Elemento *novo = (Elemento *)malloc(sizeof(Elemento));
-        novo->dado = dado;
-        novo->proximo = p->topo;
-        p->topo = novo;
-        p->qtd++;
+    case 1:
+        strcpy(novo->cor, "Vermelho");
+        novo->sigla = 'V';
+        break;
+    case 2:
+        strcpy(novo->cor, "Azul");
+        novo->sigla = 'A';
+        break;
+    case 3:
+        strcpy(novo->cor, "Verde");
+        novo->sigla = 'D';
+        break;
+    case 4:
+        strcpy(novo->cor, "Amarelo");
+        novo->sigla = 'M';
+        break;
     }
-    else
-    {
-        printf("\n --- PUSH nao Realizado - Elemento Invalido!!");
-    }
-}
-
-void *pop(Pilha *p)
-{
-    if (p->topo == NULL)
-    {
-        printf("\n -- Nao pode realizar POP - Pilha Vazia\n");
-        return NULL;
-    }
-
-    Elemento *aux = p->topo;
-    void *dado = aux->dado;
-
-    p->topo = p->topo->proximo;
-    p->qtd--;
-    free(aux);
-
-    return dado;
-}
-
-void mostraTopo(Pilha *p, void (*imprime)(void *))
-{
-    if (p->topo != NULL)
-    {
-        printf("\n Mostra TOPO - Pilha");
-        imprime(p->topo->dado);
-    }
-    else
-    {
-        printf("\n TOPO NULO - Pilha Vazia \n");
-    }
-}
-
-void apagaPilha(Pilha *p, void (*libera)(void *))
-{
-    while (p->topo != NULL)
-    {
-        void *dado = pop(p);
-        if (libera != NULL)
-        {
-            libera(dado);
-        }
-    }
-}
-
-void mostraPilha(Pilha *p, void (*imprime)(void *))
-{
-    Elemento *aux = p->topo;
-    if (aux == NULL)
-        printf("\n  -- Pilha Vazia!!\n");
-    else
-        while (aux != NULL)
-        {
-            imprime(aux->dado);
-            aux = aux->proximo;
-        }
-}
-
-// ==========================================
-// FUNÇÕES AUXILIARES PARA TESTE NO MENU
-// ==========================================
-
-void *criaDado(int valor)
-{
-    int *novo = (int *)malloc(sizeof(int));
-    *novo = valor;
     return novo;
 }
 
-void mostraDado(void *dado)
+int push(Pilha *p, Pino *elemento)
 {
-    if (dado != NULL)
+    if (elemento == NULL)
     {
-        printf("\n\t Valor: %d \n", *(int *)dado);
+        printf("\n --- PUSH nao Realizado - Elemento Invalido!!\n");
+        return 0;
+    }
+    if (p->qtd >= p->capacidade)
+    {
+        printf("\n --- Movimento Invalido: Destino atingiu a capacidade maxima (%d)!\n", p->capacidade);
+        return 0;
+    }
+
+    elemento->proximo = p->topo;
+    p->topo = elemento;
+    p->qtd++;
+    return 1;
+}
+
+Pino *pop(Pilha *p)
+{
+    Pino *aux = p->topo;
+    if (aux == NULL)
+    {
+        printf("\n --- Nao pode realizar POP - Origem Vazia!\n");
+    }
+    else
+    {
+        p->topo = p->topo->proximo;
+        p->qtd--;
+        aux->proximo = NULL;
+    }
+    return aux;
+}
+
+void apagaPilha(Pilha *p)
+{
+    while (p->topo != NULL)
+    {
+        free(pop(p));
     }
 }
 
 // ==========================================
-// MENU E PROGRAMA PRINCIPAL
+// LOGICA E REGRAS DO JOGO
 // ==========================================
 
-void menu(Pilha *p1)
+int moverPino(Pilha *origem, Pilha *destino)
 {
-    int op, valor;
-    void *removido;
+    if (origem == destino)
+    {
+        printf("\n --- A origem e o destino sao iguais!\n");
+        return 0;
+    }
+    if (origem->topo == NULL)
+    {
+        printf("\n --- Movimento Invalido: A origem esta vazia!\n");
+        return 0;
+    }
+    if (destino->qtd >= destino->capacidade)
+    {
+        printf("\n --- Movimento Invalido: O destino esta cheio (Max: %d)!\n", destino->capacidade);
+        return 0;
+    }
+
+    Pino *p = pop(origem);
+    push(destino, p);
+    return 1;
+}
+
+int verificaVitoria(Pilha *p[], Pilha *temp1, Pilha *temp2)
+{
+    if (temp1->qtd > 0 || temp2->qtd > 0)
+        return 0;
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (p[i]->qtd != 3)
+            return 0;
+
+        int corBase = p[i]->topo->idCor;
+        Pino *atual = p[i]->topo;
+        while (atual != NULL)
+        {
+            if (atual->idCor != corBase)
+                return 0;
+            atual = atual->proximo;
+        }
+    }
+    return 1;
+}
+
+void inicializaJogoAleatorio(Pilha *p[], Pilha *temp1, Pilha *temp2)
+{
+    int cores[12] = {1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4};
 
     do
     {
-        printf("\n\nInforme uma Opcao:");
-        printf("\n -- 1 - PUSH - Inserir novo Elemento:");
-        printf("\n -- 2 - POP - Remover um Elemento:");
-        printf("\n -- 3 - Mostra TOPO:");
-        printf("\n -- 4 - Apagar Pilha:");
-        printf("\n -- 5 - Mostrar Pilha:");
-        printf("\n -- 0 - para Sair do Programa:\n");
-        printf("\nInforme sua Opcao:");
+        for (int i = 0; i < 4; i++)
+            apagaPilha(p[i]);
+
+        for (int i = 11; i > 0; i--)
+        {
+            int j = rand() % (i + 1);
+            int aux = cores[i];
+            cores[i] = cores[j];
+            cores[j] = aux;
+        }
+
+        int idx = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                push(p[i], criaElementoPino(cores[idx++]));
+            }
+        }
+    } while (verificaVitoria(p, temp1, temp2));
+}
+
+// ==========================================
+// INTERFACE VISUAL NO TERMINAL
+// ==========================================
+
+char obtemSiglaNaAltura(Pilha *p, int altura)
+{
+    if (altura >= p->qtd)
+        return ' ';
+
+    int passos = (p->qtd - 1) - altura;
+    Pino *atual = p->topo;
+    for (int i = 0; i < passos; i++)
+    {
+        atual = atual->proximo;
+    }
+    return atual->sigla;
+}
+
+void mostraJogo(Pilha *p[], Pilha *temp1, Pilha *temp2, int nivel, int movimentos, time_t inicio)
+{
+    int segundos = (int)difftime(time(NULL), inicio);
+    char nomeNivel[10];
+    char t1, t2;
+
+    if (nivel == 1)
+    {
+        strcpy(nomeNivel, "Facil");
+    }
+    else if (nivel == 2)
+    {
+        strcpy(nomeNivel, "Medio");
+    }
+    else
+    {
+        strcpy(nomeNivel, "Dificil");
+    }
+
+    printf("\n======================================================\n");
+    printf(" NIVEL: %s | MOVIMENTOS: %d | TEMPO: %02d:%02d\n",
+           nomeNivel, movimentos, segundos / 60, segundos % 60);
+    printf(" Legenda: [V]ermelho | [A]zul | Ver[D]e | A[M]arelo\n");
+    printf("======================================================\n\n");
+
+    if (temp1->topo != NULL)
+    {
+        t1 = temp1->topo->sigla;
+    }
+    else
+    {
+        t1 = ' ';
+    }
+
+    if (temp2->topo != NULL)
+    {
+        t2 = temp2->topo->sigla;
+    }
+    else
+    {
+        t2 = ' ';
+    }
+
+    if (nivel == 1)
+        printf(" Temp1: [%c]                                Temp2: [%c]\n\n", t1, t2);
+    else if (nivel == 2)
+        printf(" Temp1: [%c]                                Temp2: [X] (Bloqueado)\n\n", t1);
+    else
+        printf(" Temp1: [X] (Bloqueado)                    Temp2: [X] (Bloqueado)\n\n");
+
+    for (int h = 3; h >= 0; h--)
+    {
+        printf("          ");
+        for (int i = 0; i < 4; i++)
+        {
+            printf("  [%c]  ", obtemSiglaNaAltura(p[i], h));
+        }
+        printf("\n");
+    }
+    printf("          ----------------------------\n");
+    printf("            P1     P2     P3     P4   \n");
+    printf("======================================================\n");
+}
+
+// ==========================================
+// MENU INTERATIVO E MAIN
+// ==========================================
+
+void menuJogo(Pilha *p[], Pilha *temp1, Pilha *temp2, int nivel)
+{
+    int op, orig, dest, qualTemp;
+    int movimentos = 0;
+    time_t tempoInicio = time(NULL);
+
+    do
+    {
+        mostraJogo(p, temp1, temp2, nivel, movimentos, tempoInicio);
+
+        if (verificaVitoria(p, temp1, temp2))
+        {
+            double tempoTotal = difftime(time(NULL), tempoInicio);
+            printf("\n******************************************************\n");
+            printf(" PARABENS! Voce venceu o jogo!\n");
+            printf(" Desempenho: %d movimentos em %.0f segundos.\n", movimentos, tempoTotal);
+            printf("******************************************************\n");
+            break;
+        }
+
+        printf("\nEscolha sua jogada:");
+        printf("\n 1 - Mover entre Pilhas (POP Pilha X -> PUSH Pilha Y)");
+        if (nivel <= 2)
+        {
+            printf("\n 2 - Mover de Pilha para Temporario (POP Pilha X -> PUSH Temp)");
+            printf("\n 3 - Mover de Temporario para Pilha (POP Temp -> PUSH Pilha X)");
+        }
+        printf("\n 0 - Sair do Jogo\n");
+        printf("Opcao: ");
         scanf("%d", &op);
 
         switch (op)
         {
         case 1:
-            printf("\n Funcao PUSH. \n");
-            printf("Informe um valor inteiro:");
-            scanf("%d", &valor);
-            push(p1, criaDado(valor));
-            printf("\n Insercao Realizada com Sucesso");
-            break;
-        case 2:
-            printf("\n Funcao POP. \n");
-            removido = pop(p1);
-            if (removido != NULL)
+            printf("Informe a Pilha de Origem (1 a 4): ");
+            scanf("%d", &orig);
+            printf("Informe a Pilha de Destino (1 a 4): ");
+            scanf("%d", &dest);
+
+            if (orig >= 1 && orig <= 4 && dest >= 1 && dest <= 4)
             {
-                mostraDado(removido);
-                printf("\n --- Remocao Realizada com Sucesso!!");
-                free(removido);
+                if (moverPino(p[orig - 1], p[dest - 1]))
+                    movimentos++;
             }
             else
             {
-                printf("\n --- ERRO - Remocao invalida!!");
+                printf("\n --- Pilha invalida! Escolha valores entre 1 e 4.\n");
             }
             break;
+
+        case 2:
+            if (nivel == 3)
+            {
+                printf("\n --- Nivel Dificil nao permite uso de temporarios!\n");
+                break;
+            }
+            printf("Informe a Pilha de Origem (1 a 4): ");
+            scanf("%d", &orig);
+            if (orig < 1 || orig > 4)
+            {
+                printf("\n --- Pilha invalida!\n");
+                break;
+            }
+
+            if (nivel == 1)
+            {
+                printf("Para qual Temporario (1 para Temp1, 2 para Temp2): ");
+                scanf("%d", &qualTemp);
+            }
+            else
+            {
+                qualTemp = 1;
+            }
+
+            if (qualTemp == 1)
+            {
+                if (moverPino(p[orig - 1], temp1))
+                    movimentos++;
+            }
+            else if (qualTemp == 2 && nivel == 1)
+            {
+                if (moverPino(p[orig - 1], temp2))
+                    movimentos++;
+            }
+            else
+            {
+                printf("\n --- Temporario invalido!\n");
+            }
+            break;
+
         case 3:
-            printf("Mostra TOPO Pilha P1:");
-            mostraTopo(p1, mostraDado);
+            if (nivel == 3)
+            {
+                printf("\n --- Nivel Dificil nao permite uso de temporarios!\n");
+                break;
+            }
+            if (nivel == 1)
+            {
+                printf("De qual Temporario (1 para Temp1, 2 para Temp2): ");
+                scanf("%d", &qualTemp);
+            }
+            else
+            {
+                qualTemp = 1;
+            }
+
+            printf("Informe a Pilha de Destino (1 a 4): ");
+            scanf("%d", &dest);
+            if (dest < 1 || dest > 4)
+            {
+                printf("\n --- Pilha invalida!\n");
+                break;
+            }
+
+            if (qualTemp == 1)
+            {
+                if (moverPino(temp1, p[dest - 1]))
+                    movimentos++;
+            }
+            else if (qualTemp == 2 && nivel == 1)
+            {
+                if (moverPino(temp2, p[dest - 1]))
+                    movimentos++;
+            }
+            else
+            {
+                printf("\n --- Temporario invalido!\n");
+            }
             break;
-        case 4:
-            printf("\n Apagar a Pilha !! \n");
-            apagaPilha(p1, free);
+
+        case 0:
+            printf("\nSaindo do jogo...\n");
             break;
-        case 5:
-            printf("\nMostra Pilha P1:");
-            mostraPilha(p1, mostraDado);
-            break;
-        case 6:
-            printf("\n Cria uma Pilha Invertida sem alterar Pilha 1");
-            break;
-        case 7:
-            printf("\n Inverte a Pilha 1");
-            break;
-        case 8:
-            printf("\n Inverte Extremos da Pilha 1");
-            break;
+
         default:
-            printf("\nFim do programa!!\n");
+            printf("\n --- Opcao Invalida!\n");
         }
 
-    } while (op > 0);
+    } while (op != 0);
 }
 
 int main()
 {
-    Pilha *p1 = criaPilha();
+    srand((unsigned int)time(NULL));
 
-    push(p1, criaDado(10));
-    push(p1, criaDado(20));
-    push(p1, criaDado(30));
+    Pilha *p[4];
+    for (int i = 0; i < 4; i++)
+    {
+        p[i] = criaPilha(4);
+    }
 
-    menu(p1);
+    Pilha *temp1 = criaPilha(1);
+    Pilha *temp2 = criaPilha(1);
 
-    apagaPilha(p1, free);
-    free(p1);
+    int nivel;
+    printf("======================================================\n");
+    printf("         JOGO DE LOGICA - PILHAS COLORIDAS            \n");
+    printf("======================================================\n");
+    printf("Selecione o Nivel de Dificuldade:\n");
+    printf(" 1 - Facil   (4 Pilhas + Temp1 e Temp2)\n");
+    printf(" 2 - Medio   (4 Pilhas + Apenas Temp1)\n");
+    printf(" 3 - Dificil (4 Pilhas, Sem Temporarios)\n");
+    printf("Opcao: ");
+    scanf("%d", &nivel);
+
+    if (nivel < 1 || nivel > 3)
+    {
+        printf("Nivel invalido! Ajustando para Nivel 1 (Facil).\n");
+        nivel = 1;
+    }
+
+    inicializaJogoAleatorio(p, temp1, temp2);
+    menuJogo(p, temp1, temp2, nivel);
+
+    for (int i = 0; i < 4; i++)
+    {
+        apagaPilha(p[i]);
+        free(p[i]);
+    }
+    apagaPilha(temp1);
+    free(temp1);
+    apagaPilha(temp2);
+    free(temp2);
 
     return 0;
 }
